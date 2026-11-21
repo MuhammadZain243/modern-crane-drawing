@@ -1,0 +1,25 @@
+{
+  "name": "modern-crane-drawing",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MuhammadZain243/modern-crane-drawing.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MuhammadZain243/modern-crane-drawing/issues"
+  },
+  "homepage": "https://github.com/MuhammadZain243/modern-crane-drawing#readme",
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}
