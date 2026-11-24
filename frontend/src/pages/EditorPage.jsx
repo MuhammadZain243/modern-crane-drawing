@@ -6,7 +6,7 @@ import CraneDrawing from "../components/CraneDrawing.jsx";
 import DesignForm from "../components/DesignForm.jsx";
 import DimensionTable from "../components/DimensionTable.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
-import LoadingState from "../components/LoadingState.jsx";
+import LoadingState, { DimensionSkeleton, DrawingSkeleton } from "../components/LoadingState.jsx";
 import useConfig from "../hooks/useConfig.js";
 import useDebouncedPreview from "../hooks/useDebouncedPreview.js";
 import { designService, emptyDesign, mapDesignToForm } from "../services/designService.js";
@@ -114,7 +114,7 @@ export default function EditorPage({ id }) {
     }
   }
 
-  if (loading) return <LoadingState label="Opening crane design…" />;
+  if (loading) return <LoadingState label="Opening crane design…" variant="editor" />;
   if (loadError?.status === 404) {
     return (
       <div className="mx-auto max-w-xl rounded-3xl border border-line bg-surface p-8 text-center">
@@ -136,7 +136,7 @@ export default function EditorPage({ id }) {
     );
   }
   if (configError) return <ErrorMessage error={configError} />;
-  if (!config) return <LoadingState label="Loading design requirements…" />;
+  if (!config) return <LoadingState label="Loading design requirements…" variant="editor" />;
 
   const dimensions = preview.invalid
     ? []
@@ -204,12 +204,22 @@ export default function EditorPage({ id }) {
                 <h2 className="text-lg font-black tracking-tight text-ink">Dimension summary</h2>
                 <p className="mt-1 text-xs text-ink-faint">Updates as your inputs change</p>
               </div>
-              {preview.loading && <span className="text-xs font-semibold text-brand">Updating…</span>}
+              {preview.loading && (
+                <span role="status" className="text-xs font-semibold text-brand">Updating…</span>
+              )}
             </div>
             {preview.error && <ErrorMessage error={preview.error} className="mb-4" />}
-            <DimensionTable dimensions={dimensions} />
+            {preview.loading && !dimensions.length ? (
+              <DimensionSkeleton />
+            ) : (
+              <DimensionTable dimensions={dimensions} />
+            )}
           </section>
-          <CraneDrawing dimensions={dimensions} />
+          {preview.loading && !dimensions.length ? (
+            <DrawingSkeleton />
+          ) : (
+            <CraneDrawing dimensions={dimensions} />
+          )}
           <p className="rounded-2xl border border-accent/30 bg-warning-tint px-4 py-3 text-xs leading-5 text-warning-ink">
             The girder depth is a rule-of-thumb estimate only. No structural, load, or standards-compliance calculations are provided.
           </p>

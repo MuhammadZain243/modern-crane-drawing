@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import Button from "../components/Button.jsx";
 import DesignList from "../components/DesignList.jsx";
 import ErrorMessage from "../components/ErrorMessage.jsx";
-import LoadingState from "../components/LoadingState.jsx";
+import LoadingState, { MoreDesignsSkeleton } from "../components/LoadingState.jsx";
 import { designService } from "../services/designService.js";
 
 export default function DesignsPage() {
@@ -116,11 +116,15 @@ export default function DesignsPage() {
           <div className="space-y-5">
             <DesignList designs={designs} />
             {pagination && designs.length < pagination.total && (
-              <div className="flex justify-center">
-                <Button variant="secondary" onClick={loadMore} disabled={loadingMore}>
-                  {loadingMore ? "Loading…" : "Load more designs"}
-                </Button>
-              </div>
+              loadingMore ? (
+                <MoreDesignsSkeleton />
+              ) : (
+                <div className="flex justify-center">
+                  <Button variant="secondary" onClick={loadMore}>
+                    Load more designs
+                  </Button>
+                </div>
+              )
             )}
           </div>
         ) : !error ? (
