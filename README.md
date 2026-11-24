@@ -84,7 +84,7 @@ modern-crane-drawing/
 ├── README.md
 ├── DECISIONS.md
 ├── AI_LOG.md
-├── package.json        <- root scripts (install:all, dev)
+├── package.json        <- root scripts (install:all, dev, test)
 ├── backend/            <- Express API + SQLite
 └── frontend/           <- React + Tailwind UI
 ```
@@ -96,6 +96,7 @@ Requires Node.js 20+.
 ```bash
 npm run install:all   # installs root, backend and frontend dependencies
 npm run dev           # backend on http://localhost:4000, frontend on http://localhost:5173
+npm test              # backend and frontend tests
 ```
 
 Backend setup details (env file, scripts): see `backend/README.md`.
@@ -222,7 +223,7 @@ No calculation is currently sourced from a public standard or validated by a cra
 
 ## 12. Hours spent
 
-TODO: real hours, filled in at the end.
+To be completed by the author using actual time tracked. Do not estimate.
 
 ## 13. Submission checklist
 
