@@ -14,7 +14,13 @@ const app = express();
 app.use(requestLogger);
 
 app.use(helmet());
-app.use(cors({ origin: env.corsOrigin }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      callback(null, !origin || origin === env.corsOrigin);
+    },
+  }),
+);
 app.use(express.json({ limit: limits.bodyLimit }));
 
 app.use(API_PREFIX, apiLimiter, apiRouter);

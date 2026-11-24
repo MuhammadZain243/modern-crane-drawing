@@ -36,10 +36,9 @@ export default function requestLogger(req, res, next) {
       ? { label: "ABORTED", color: "35" } // client left before we answered
       : classify(res.statusCode);
 
-    const url =
-      req.originalUrl.length > 200
-        ? `${req.originalUrl.slice(0, 200)}...`
-        : req.originalUrl;
+    const requestPath = req.originalUrl.split("?", 1)[0];
+    const safePath = requestPath.replace(/[\u0000-\u001f\u007f-\u009f]/g, "?");
+    const url = safePath.length > 200 ? `${safePath.slice(0, 200)}...` : safePath;
     const status = aborted ? "---" : res.statusCode;
 
     const line =

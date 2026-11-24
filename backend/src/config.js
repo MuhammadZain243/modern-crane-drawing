@@ -1,9 +1,33 @@
 import "dotenv/config";
 
+const portValue = process.env.PORT ?? "4000";
+const port = Number(portValue);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535");
+}
+
+const corsOrigin = process.env.CORS_ORIGIN?.trim() || "http://localhost:5173";
+let parsedCorsOrigin;
+try {
+  parsedCorsOrigin = new URL(corsOrigin);
+} catch {
+  throw new Error("CORS_ORIGIN must be a valid HTTP or HTTPS origin");
+}
+if (
+  !["http:", "https:"].includes(parsedCorsOrigin.protocol) ||
+  parsedCorsOrigin.origin !== corsOrigin
+) {
+  throw new Error("CORS_ORIGIN must be a valid HTTP or HTTPS origin without a path");
+}
+
+const dbPath =
+  process.env.DB_PATH === undefined ? "./data/designs.db" : process.env.DB_PATH.trim();
+if (!dbPath) throw new Error("DB_PATH must not be empty");
+
 export const env = {
-  port: Number(process.env.PORT) || 4000,
-  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
-  dbPath: process.env.DB_PATH || "./data/designs.db",
+  port,
+  corsOrigin,
+  dbPath,
 };
 
 export const limits = {

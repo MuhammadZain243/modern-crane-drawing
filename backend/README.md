@@ -33,7 +33,7 @@ API runs on `http://localhost:4000`.
 | ------------- | ----------------------- | ----------------------- |
 | `PORT`        | `4000`                  | Server port             |
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed frontend origin |
-| `DB_PATH`     | `./data/designs.db`     | SQLite file location    |
+| `DB_PATH`     | `./data/designs.db`     | SQLite file location, relative to the backend process working directory |
 
 ### Scripts
 
@@ -41,7 +41,7 @@ API runs on `http://localhost:4000`.
 | ------------- | -------------------------------------- |
 | `npm run dev` | Start with nodemon                     |
 | `npm start`   | Start with node                        |
-| `npm test`    | Run tests (TODO: add once tests exist) |
+| `npm test`    | Run unit and API tests with Node's test runner |
 
 ## 3. Folder structure
 
@@ -57,15 +57,16 @@ backend/
     ├── config.js             <- ports, limits, input ranges (single source)
     ├── db.js                 <- opens DB, creates tables
     ├── routes/designs.js     <- route definitions
-    ├── controllers/          <- request/response only, no business logic
     ├── services/
     │   ├── dimensions.js     <- pure: inputs -> dimensions (with sources)
     │   └── designs.js        <- DB reads and writes
-    ├── validation/designSchema.js
-    └── middleware/           <- errorHandler, notFound, rateLimit
+    ├── validation/designSchema.js <- strict body, id and pagination validation
+    ├── utils/                <- application errors and route table
+    └── middleware/           <- error handling, not-found, rate limit, request log
+└── test/                     <- calculation, validation and API tests
 ```
 
-Layer rule: **routes -> controllers -> services -> db**. Validation happens before the controller logic runs. `dimensions.js` has no I/O, so it is easy to unit test.
+Layer rule: **routes -> services -> db**. Routes validate and translate HTTP requests; services own calculation and persistence. `dimensions.js` has no I/O, so it is straightforward to unit test.
 
 ## 4. Inputs and validation
 
@@ -85,7 +86,7 @@ Rules:
 
 - Reject wrong types, `NaN`, `Infinity`, negatives and out-of-range values
 - Reject **unknown fields** (Zod `.strict()`) to prevent mass assignment
-- Cross-field checks (for example span vs capacity) are added once an engineer confirms valid combinations. TODO.
+- Cross-field checks (for example span vs capacity) are intentionally not invented; add them only after an engineer confirms valid combinations.
 - All ranges above are **assumptions, not sourced facts**, until confirmed.
 
 ## 5. Dimension calculation
@@ -104,9 +105,17 @@ Rules:
 
 `source` is one of `input`, `reference-drawing` or `estimate`.
 
-Do not invent weights or wheel loads. If a value cannot be sourced, mark it as an estimate or leave it out.
+Current calculation outputs are deliberately limited:
 
-TODO: fill the formula table (formula, source, confidence) in the root README, section "Sources for formulas and rules".
+| Key | Calculation | Source | Confidence / use |
+| --- | --- | --- | --- |
+| `spanMm` | `spanM * 1000`, rounded to the nearest mm | Input | High; unit conversion only |
+| `liftHeightMm` | `liftHeightM * 1000`, rounded to the nearest mm | Input | High; unit conversion only |
+| `endClearanceLeftMm` | Input value | Input | High; no calculation |
+| `endClearanceRightMm` | Input value | Input | High; no calculation |
+| `girderDepthMm` | `spanMm / 20`, rounded to the nearest mm | Estimate / rule of thumb | Low; preliminary visualization only, not verified |
+
+No values are currently taken from a cited reference drawing or public standard. The range limits are assumptions, not engineering recommendations. Do not infer strength, stability, wheel loads, weights or compliance from these dimensions. Do not add a derived dimension unless its source and limitations are documented and every non-input output is labelled accordingly.
 
 ## 6. Database
 
@@ -115,14 +124,14 @@ SQLite file at `DB_PATH`. Created automatically on first start.
 ```sql
 CREATE TABLE IF NOT EXISTS designs (
   id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-  name                   TEXT    NOT NULL CHECK (length(name) BETWEEN 1 AND 100),
-  capacity_t             REAL    NOT NULL,
-  span_m                 REAL    NOT NULL,
-  lift_height_m          REAL    NOT NULL,
-  end_clearance_left_mm  INTEGER NOT NULL,
-  end_clearance_right_mm INTEGER NOT NULL,
-  duty_group             TEXT    NOT NULL,
-  schema_version         INTEGER NOT NULL DEFAULT 1,
+  name                   TEXT    NOT NULL CHECK (length(trim(name)) BETWEEN 1 AND 100),
+  capacity_t             REAL    NOT NULL CHECK (capacity_t BETWEEN 1 AND 20),
+  span_m                 REAL    NOT NULL CHECK (span_m BETWEEN 5 AND 30),
+  lift_height_m          REAL    NOT NULL CHECK (lift_height_m BETWEEN 3 AND 15),
+  end_clearance_left_mm  INTEGER NOT NULL CHECK (end_clearance_left_mm BETWEEN 100 AND 1500),
+  end_clearance_right_mm INTEGER NOT NULL CHECK (end_clearance_right_mm BETWEEN 100 AND 1500),
+  duty_group             TEXT    NOT NULL CHECK (duty_group IN ('A3', 'A4', 'A5', 'A6')),
+  schema_version         INTEGER NOT NULL DEFAULT 1 CHECK (schema_version > 0),
   created_at             TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at             TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -131,6 +140,7 @@ CREATE TABLE IF NOT EXISTS designs (
 - Only **inputs** are stored. Dimensions are recalculated when reading.
 - `schema_version` tells which formula version a design was made with.
 - All queries use **prepared statements with bound parameters**. No string-built SQL.
+- SQLite constraints repeat important validation rules as defense in depth.
 
 ## 7. API
 
@@ -146,6 +156,10 @@ Base path: `/api`
 | GET    | `/api/designs/:id`     | Get one design with dimensions   | 200     |
 | PUT    | `/api/designs/:id`     | Update design                    | 200     |
 | DELETE | `/api/designs/:id`     | Delete design                    | 204     |
+
+`GET /api/designs` defaults to `limit=20&offset=0`; `limit` must be 1–100 and `offset` a non-negative safe integer. It returns `{ "designs": [], "pagination": { "limit": 20, "offset": 0, "total": 0 } }`, ordered newest first.
+
+`POST /api/designs/preview` returns `{ "dimensions": [...] }` and never writes to SQLite. `GET /api/config` returns the input ranges and duty groups from the backend's single source of truth.
 
 ### Example: create
 
@@ -180,11 +194,39 @@ Response `201`
     },
     "dimensions": [
       {
-        "key": "...",
-        "label": "...",
-        "valueMm": 0,
+        "key": "spanMm",
+        "label": "Crane span",
+        "valueMm": 25000,
+        "source": "input",
+        "note": "Provided span, converted from metres to millimetres."
+      },
+      {
+        "key": "liftHeightMm",
+        "label": "Lifting height",
+        "valueMm": 7900,
+        "source": "input",
+        "note": "Provided lifting height, converted from metres to millimetres."
+      },
+      {
+        "key": "endClearanceLeftMm",
+        "label": "Left end clearance",
+        "valueMm": 235,
+        "source": "input",
+        "note": "Provided input."
+      },
+      {
+        "key": "endClearanceRightMm",
+        "label": "Right end clearance",
+        "valueMm": 235,
+        "source": "input",
+        "note": "Provided input."
+      },
+      {
+        "key": "girderDepthMm",
+        "label": "Estimated girder depth",
+        "valueMm": 1250,
         "source": "estimate",
-        "note": "..."
+        "note": "Rule-of-thumb estimate: span divided by 20. Not verified for structural design."
       }
     ],
     "schemaVersion": 1,
@@ -214,18 +256,20 @@ Response `201`
 | 429    | `RATE_LIMITED`      | Too many requests                                              |
 | 500    | `INTERNAL_ERROR`    | Unexpected error (generic message, details only in server log) |
 
+All error responses use `{ "error": { "code": "...", "message": "...", "fields": {} } }`; `fields` is included when applicable. Invalid JSON is a 400, oversized bodies are a 413 and rate-limited requests are a 429. Unexpected errors are logged server-side and never expose stack traces to clients.
+
 ## 8. Security
 
-- [ ] Zod validation on every write endpoint, `.strict()` schemas
-- [ ] Prepared statements only
-- [ ] `helmet()`
-- [ ] CORS limited to `CORS_ORIGIN`
-- [ ] `express.json({ limit: '10kb' })`
-- [ ] Rate limit on `/api`
-- [ ] `:id` validated as a positive integer
-- [ ] Central error handler, no stack traces in responses
-- [ ] No secrets in the repo, `.env` is git-ignored
-- [ ] `npm audit` before submitting
+- [x] Zod validation on every write endpoint, `.strict()` schemas
+- [x] Prepared statements only
+- [x] `helmet()`
+- [x] CORS limited to the configured `CORS_ORIGIN`
+- [x] `express.json({ limit: '10kb' })`
+- [x] Rate limit on `/api`
+- [x] `:id` validated as a positive safe integer
+- [x] Central error handler, no stack traces in responses
+- [x] No secrets in the repo, `.env` is git-ignored
+- [x] `npm audit` reports no dependency vulnerabilities
 - [ ] **Known gap:** no authentication or per-user ownership, so any user can read and edit any design
 
 ## 9. Backend user story steps
@@ -246,12 +290,16 @@ Follow this order. Commit after each step.
 
 ## 10. Testing
 
-TODO. Plan:
+Run `npm test` from the `backend/` directory. Tests use Node's built-in test runner, native `fetch`, and an isolated temporary SQLite database; they do not depend on the developer database.
 
-- Unit tests for `calculateDimensions` (known inputs, boundaries, determinism)
-- API tests for each endpoint: success, validation failure, not found, unknown field
-- Try bad inputs by hand: `NaN`, strings, negative numbers, huge numbers, extra fields, SQL-looking text in `name`
+- Unit tests cover deterministic calculations, source labels, non-finite numbers, unknown fields, pagination bounds and ID validation.
+- API tests cover health/config, preview without persistence, create/list/read/update/delete, validation errors, missing resources, malformed JSON and unknown routes.
+- JSON cannot represent `NaN` or `Infinity`; direct schema tests cover those values and the HTTP parser rejects invalid JSON.
 
 ## 11. Known limitations
 
-TODO. Expected: no authentication, formulas are estimates not reviewed by a crane engineer, single crane type, SQLite only (single process).
+- No authentication or ownership: anyone who can reach the API can read, change or delete every design. Restrict network access to trusted users; do not expose this service publicly as-is.
+- Single-girder EOT only; SQLite is intended for a single application process and modest internal use.
+- Input limits and duty groups are assumptions. The available dimensions are preliminary estimates, not shop drawings or manufacture-ready designs.
+- No structural, deflection, wheel-load, weight, hoist/trolley selection, electrical or standards-compliance calculations.
+- Formulas and assumptions have not been reviewed or approved by a crane engineer.

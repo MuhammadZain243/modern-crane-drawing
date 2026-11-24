@@ -203,11 +203,22 @@ _As an engineer, I want to download or print the drawing, so I can send it to th
 
 ## 10. Sources for formulas and rules
 
-TODO: table listing each dimension or rule, its source (reference drawing, public standard, rule of thumb, my guess) and my confidence. Estimates are labelled as estimates.
+| Dimension or rule | Formula / value | Source | Confidence and limitation |
+| --- | --- | --- | --- |
+| Span, lifting height | User input converted from metres to millimetres | Input | High for conversion only |
+| Left/right end clearance | User input in millimetres | Input | High for representation only; allowed ranges are assumptions |
+| Girder depth | `span / 20`, rounded to millimetres | Unverified rule-of-thumb estimate | Low; preliminary visualization only, not suitable for structural design |
+| Input ranges and duty groups | Values listed in `backend/README.md` | Initial assumptions; sample drawing informs some example values | Unverified and not engineering recommendations |
+
+No calculation is currently sourced from a public standard or validated by a crane engineer. The backend returns no weights, wheel loads or compliance claims; see [`backend/README.md`](backend/README.md) for calculation details and limitations.
 
 ## 11. Known limitations
 
-TODO. Expected: single-girder only, no authentication, no structural calculations, preliminary drawings only, formulas not reviewed by a crane engineer.
+- Single-girder EOT only; no gantry, double-girder or other crane types.
+- No authentication or per-user design ownership; restrict the API to trusted users and networks.
+- No structural, deflection, wheel-load, weight, hoist/trolley selection, electrical or standards-compliance calculations.
+- Dimensions are preliminary estimates and inputs/ranges are not validated engineering recommendations. Drawings are not for manufacture.
+- Formulas and assumptions have not been reviewed or approved by a crane engineer.
 
 ## 12. Hours spent
 

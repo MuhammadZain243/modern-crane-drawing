@@ -30,7 +30,7 @@ export default function errorHandler(err, req, res, next) {
   }
 
   // Anything else is a bug: log details on the server, send a generic message
-  console.error(err);
+  console.error(`[${req.id ?? "no-request-id"}]`, err);
   return res.status(500).json({
     error: { code: "INTERNAL_ERROR", message: "Something went wrong" },
   });

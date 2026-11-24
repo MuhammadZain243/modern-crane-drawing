@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { inputRanges, DUTY_GROUPS } from "../config.js";
 import { addRoute } from "../utils/routeTable.js";
+import designsRouter from "./designs.js";
 
 export const API_PREFIX = "/api";
 
@@ -22,7 +23,6 @@ addRoute(
   },
 );
 
-// Next steps: designs routes will also use addRoute(), so they show up
-// in the startup list automatically.
+router.use("/designs", designsRouter);
 
 export default router;
